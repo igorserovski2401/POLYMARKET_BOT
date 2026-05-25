@@ -123,9 +123,29 @@ ai_engine:
   # Second safety gate: must be true to submit live orders
   allow_live_trading: false
 
-  # API keys (prefer env vars ANTHROPIC_API_KEY / NEWS_API_KEY)
+  # API keys (prefer env vars ANTHROPIC_API_KEY / NEWS_API_KEY / MEDIASTACK_API_KEY)
   anthropic_api_key: ""
   news_api_key: ""
+  mediastack_api_key: ""
+
+  # News provider: "router" (default), "gdelt", "newsapi", "mediastack"
+  news_provider: "router"
+  fallback_news_provider: "gdelt"
+  source_router_enabled: true
+
+  # Market categories to enable/disable for LLM evaluation
+  enabled_categories:
+    - "crypto_price"
+    - "macro_release"
+    - "fed_rates"
+    - "weather"
+    - "legal_regulatory"
+    - "company_sec"
+    - "generic_news"
+  disabled_categories:
+    - "politics_election"
+    - "geopolitics"
+    - "sports"
 
   # Model: claude-sonnet-4-6 (default) or claude-opus-4-7
   model: "claude-sonnet-4-6"

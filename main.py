@@ -154,12 +154,33 @@ class TradingBot:
         # Initialize LLM News strategy if enabled
         if self.config.ai_engine.enabled:
             ai_cfg = self.config.ai_engine
-            if not ai_cfg.anthropic_api_key or not ai_cfg.news_api_key:
+            needs_news_key = ai_cfg.news_provider == "newsapi"
+            needs_mediastack_key = ai_cfg.news_provider == "mediastack"
+
+            missing_anthropic = not ai_cfg.anthropic_api_key
+            missing_news = needs_news_key and not ai_cfg.news_api_key
+            missing_mediastack = needs_mediastack_key and not ai_cfg.mediastack_api_key
+
+            if missing_anthropic:
                 if self.config.is_live:
                     raise ConfigError(
-                        "AI Engine: ANTHROPIC_API_KEY and NEWS_API_KEY required in live mode"
+                        "AI Engine: ANTHROPIC_API_KEY required in live mode"
                     )
-                logger.warning("[AIEngine] Disabled: missing ANTHROPIC_API_KEY or NEWS_API_KEY")
+                logger.warning("[AIEngine] Disabled: missing ANTHROPIC_API_KEY")
+            elif missing_news:
+                if self.config.is_live:
+                    raise ConfigError(
+                        "AI Engine: NEWS_API_KEY required when news_provider=newsapi in live mode"
+                    )
+                logger.warning("[AIEngine] Disabled: news_provider=newsapi but NEWS_API_KEY not set")
+            elif missing_mediastack:
+                if self.config.is_live:
+                    raise ConfigError(
+                        "AI Engine: MEDIASTACK_API_KEY required when news_provider=mediastack in live mode"
+                    )
+                logger.warning(
+                    "[AIEngine] Disabled: news_provider=mediastack but MEDIASTACK_API_KEY not set"
+                )
             else:
                 from ai_engine.ai_agent import AIAgent
                 from ai_engine.news_feed import NewsFeedPoller
@@ -170,11 +191,7 @@ class TradingBot:
                         model=ai_cfg.model,
                         calls_per_minute=ai_cfg.calls_per_minute,
                     ),
-                    news_poller=NewsFeedPoller(
-                        api_key=ai_cfg.news_api_key,
-                        page_size=ai_cfg.news_page_size,
-                        max_age_minutes=ai_cfg.news_max_age_minutes,
-                    ),
+                    news_poller=NewsFeedPoller(cfg=ai_cfg),
                     cfg=ai_cfg,
                 )
                 self._llm_task = asyncio.create_task(
@@ -182,6 +199,7 @@ class TradingBot:
                 )
                 logger.info(
                     f"[AIEngine] Started | model={ai_cfg.model} | "
+                    f"provider={ai_cfg.news_provider} | "
                     f"shadow={ai_cfg.shadow_mode} | "
                     f"submit_in_dry_run={ai_cfg.submit_in_dry_run} | "
                     f"live_allowed={ai_cfg.allow_live_trading}"

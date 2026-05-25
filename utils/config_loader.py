@@ -103,6 +103,15 @@ class MonitoringConfig:
     track_fill_rates: bool = True
 
 
+_VALID_NEWS_PROVIDERS = frozenset({"router", "gdelt", "newsapi", "mediastack"})
+_VALID_FALLBACK_PROVIDERS = frozenset({"gdelt", "newsapi", "mediastack"})
+_VALID_CATEGORIES = frozenset({
+    "internal_arb", "cross_market_arb", "crypto_price", "macro_release",
+    "fed_rates", "weather", "sports", "legal_regulatory", "company_sec",
+    "politics_election", "geopolitics", "generic_news", "unknown",
+})
+
+
 @dataclass
 class AIEngineConfig:
     """LLM-News strategy configuration."""
@@ -110,6 +119,7 @@ class AIEngineConfig:
     allow_live_trading: bool = False
     anthropic_api_key: str = ""
     news_api_key: str = ""
+    mediastack_api_key: str = ""
     model: str = "claude-sonnet-4-6"
     check_interval_seconds: float = 60.0
     max_markets_per_cycle: int = 20
@@ -124,6 +134,16 @@ class AIEngineConfig:
     shadow_mode: bool = True
     long_only: bool = True
     submit_in_dry_run: bool = False
+    news_provider: str = "router"
+    fallback_news_provider: str = "gdelt"
+    source_router_enabled: bool = True
+    enabled_categories: list = field(default_factory=lambda: [
+        "crypto_price", "macro_release", "fed_rates", "weather",
+        "legal_regulatory", "company_sec", "generic_news",
+    ])
+    disabled_categories: list = field(default_factory=lambda: [
+        "politics_election", "geopolitics", "sports",
+    ])
 
 
 @dataclass
@@ -197,6 +217,8 @@ def load_config(config_path: str = "config.yaml") -> BotConfig:
     ai_engine_data = _apply_env_overrides(ai_engine_data, {
         "anthropic_api_key": "ANTHROPIC_API_KEY",
         "news_api_key": "NEWS_API_KEY",
+        "mediastack_api_key": "MEDIASTACK_API_KEY",
+        "news_provider": "NEWS_PROVIDER",
     })
 
     # Build config objects
@@ -309,9 +331,34 @@ def _validate_config(config: BotConfig) -> None:
             logger.warning(
                 "[AIEngine] Live mode detected but allow_live_trading=false — shadow mode forced"
             )
-        if config.is_live and (not ai.anthropic_api_key or not ai.news_api_key):
+        # News-Key requirement depends on provider
+        if ai.news_provider not in _VALID_NEWS_PROVIDERS:
             errors.append(
-                "ai_engine: ANTHROPIC_API_KEY and NEWS_API_KEY required in live mode"
+                f"ai_engine.news_provider '{ai.news_provider}' invalid — "
+                f"must be one of: {sorted(_VALID_NEWS_PROVIDERS)}"
+            )
+        if ai.fallback_news_provider not in _VALID_FALLBACK_PROVIDERS:
+            errors.append(
+                f"ai_engine.fallback_news_provider '{ai.fallback_news_provider}' invalid — "
+                f"must be one of: {sorted(_VALID_FALLBACK_PROVIDERS)}"
+            )
+        unknown_enabled = set(ai.enabled_categories) - _VALID_CATEGORIES
+        if unknown_enabled:
+            errors.append(
+                f"ai_engine.enabled_categories contains unknown values: {sorted(unknown_enabled)}"
+            )
+        unknown_disabled = set(ai.disabled_categories) - _VALID_CATEGORIES
+        if unknown_disabled:
+            errors.append(
+                f"ai_engine.disabled_categories contains unknown values: {sorted(unknown_disabled)}"
+            )
+        if config.is_live and not ai.anthropic_api_key:
+            errors.append("ai_engine: ANTHROPIC_API_KEY required in live mode")
+        if config.is_live and ai.news_provider == "newsapi" and not ai.news_api_key:
+            errors.append("ai_engine: NEWS_API_KEY required when news_provider=newsapi in live mode")
+        if config.is_live and ai.news_provider == "mediastack" and not ai.mediastack_api_key:
+            errors.append(
+                "ai_engine: MEDIASTACK_API_KEY required when news_provider=mediastack in live mode"
             )
         if ai.shadow_mode and ai.submit_in_dry_run:
             logger.warning(
