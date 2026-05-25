@@ -16,7 +16,12 @@ api:
   retry_delay_seconds: 1
 
 trading:
-  markets: []
+  # Bekannte Polymarket-Market-IDs für Shadow-Test
+  # (Sandbox hat keinen Gamma-API-Zugang — simulation-Stubs werden erstellt)
+  markets:
+    - "21742633143463906290569050155826241533067272736897614950488156847949938836455"
+    - "69236923620077691027083946871148646972011131466059644796654161903044801538539"
+    - "79682519744203916990386814980570376369027547543426834779979741573571229019486"
   min_edge: 0.01
   bundle_arb_enabled: true
   min_spread: 0.05
@@ -42,7 +47,7 @@ risk:
 
 mode:
   trading_mode: "dry_run"
-  data_mode: "real"
+  data_mode: "simulation"
   cross_platform_enabled: true
   kalshi_enabled: true
   min_match_similarity: 0.6

@@ -117,26 +117,43 @@ class DataFeed:
     
     async def _fetch_markets(self) -> None:
         """Fetch market information for all monitored markets."""
+        use_simulation = getattr(self.config, 'use_simulation', False)
         try:
             if not self.market_ids:
                 # Discover markets if none specified - list_markets returns full Market objects!
                 markets = await self.client.list_markets({"active": True})
-                
+
                 # Store markets directly from the list - no need to re-fetch!
                 for market in markets:
                     self._markets[market.market_id] = market
-                
+
                 self.market_ids = [m.market_id for m in markets]
                 logger.info(f"Discovered and loaded {len(self.market_ids)} active markets (no re-fetch needed!)")
             else:
                 # Only fetch if specific market_ids were provided
                 for market_id in self.market_ids:
-                    market = await self.client.get_market(market_id)
-                    self._markets[market_id] = market
-                
+                    try:
+                        market = await self.client.get_market(market_id)
+                        self._markets[market_id] = market
+                    except Exception as per_market_err:
+                        if use_simulation:
+                            from polymarket_client.models import Market as _Market
+                            self._markets[market_id] = _Market(
+                                market_id=market_id,
+                                condition_id=market_id,
+                                question=f"Simulated market {market_id}",
+                                active=True,
+                            )
+                            logger.info(f"[DataFeed] Simulation stub created for market {market_id}")
+                        else:
+                            raise per_market_err
+
         except Exception as e:
             logger.error(f"Failed to fetch markets: {e}")
-            raise
+            if use_simulation:
+                logger.warning("[DataFeed] Market discovery failed — continuing in simulation mode with existing stubs")
+            else:
+                raise
     
     async def _stream_orderbooks(self) -> None:
         """Stream order book updates."""

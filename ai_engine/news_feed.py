@@ -57,7 +57,11 @@ class NewsFeedPoller:
                 resp.raise_for_status()
                 data = resp.json()
         except Exception as e:
-            logger.warning(f"[LLM_NEWS_FETCH] NewsAPI error for market {market_id}: {e}")
+            # Mask full URL to prevent apiKey from appearing in logs
+            safe_err = str(e)
+            if self._api_key and self._api_key in safe_err:
+                safe_err = safe_err.replace(self._api_key, "***")
+            logger.warning(f"[LLM_NEWS_FETCH] NewsAPI error for market {market_id}: {safe_err}")
             return []
 
         events: list[NewsEvent] = []
